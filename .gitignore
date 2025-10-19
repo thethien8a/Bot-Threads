@@ -1,3 +1,5 @@
 .env
 .serena
 .cursor
+venv/
+__pycache__/
