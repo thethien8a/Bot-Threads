@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 
 import nodriver as uc
 from dotenv import load_dotenv
@@ -24,6 +25,7 @@ async def login_threads_nodriver(browser):
     
     page = await browser.get(THREADS_LOGIN_URL)
     
+    await page
     # Đăng nhập username
     username_input = await page.select('input[placeholder*="Username"]')
     username = os.getenv("THREADS_USERNAME")
@@ -32,7 +34,7 @@ async def login_threads_nodriver(browser):
         await asyncio.sleep(0.3)
         for char in username:
             await username_input.send_keys(char)
-            await asyncio.sleep(0.15 + 0.1 * asyncio.random.random())  
+            await asyncio.sleep(0.15 + 0.1 * random.random())
         logger.info("Đã nhập username")
 
     # Đăng nhập password
@@ -43,7 +45,7 @@ async def login_threads_nodriver(browser):
         await asyncio.sleep(0.3)
         for char in password:
             await password_input.send_keys(char)
-            await asyncio.sleep(0.15 + 0.1 * asyncio.random.random())  
+            await asyncio.sleep(0.15 + 0.1 * random.random())
         logger.info("Đã nhập password")
 
     # Click login
