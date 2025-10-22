@@ -17,10 +17,10 @@ logger = logging.getLogger(__name__)
 THREADS_LOGIN_URL = "https://www.threads.com/login"
 
 async def init_driver():
-    browser = await uc.start(headless=False, lang="vi")
+    browser = await uc.start(headless=False)
     return browser
 
-async def login_threads_nodriver(browser):
+async def login_threads_nodriver(browser, config: CommentConfig):
     """Đăng nhập Threads bằng Nodriver - nhanh hơn undetected_chromedriver."""
     
     page = await browser.get(THREADS_LOGIN_URL)
@@ -28,7 +28,7 @@ async def login_threads_nodriver(browser):
     await page
     # Đăng nhập username
     username_input = await page.select('input[placeholder*="Username"]')
-    username = os.getenv("THREADS_USERNAME")
+    username = config.threads_username
     if username:
         await username_input.click()
         await asyncio.sleep(0.3)
@@ -39,7 +39,7 @@ async def login_threads_nodriver(browser):
 
     # Đăng nhập password
     password_input = await page.select('input[placeholder*="Password"]')
-    password = os.getenv("THREADS_PASSWORD")
+    password = config.threads_password
     if password:
         await password_input.click()
         await asyncio.sleep(0.3)
@@ -53,6 +53,10 @@ async def login_threads_nodriver(browser):
     await login_btn.click()
     
     logger.info("Đăng nhập thành công!")
+    
+    await asyncio.sleep(5)
+    await page
+    
     return page
 
 async def scrape_threads(page, config: CommentConfig):
@@ -69,7 +73,7 @@ async def main():
         return
 
     browser = await init_driver()
-    page = await login_threads_nodriver(browser)
+    page = await login_threads_nodriver(browser, config)
     if page is None:
         logger.error("Không thể đăng nhập Threads")
         browser.stop()
