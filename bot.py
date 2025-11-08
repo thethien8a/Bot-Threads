@@ -17,6 +17,17 @@ class ThreadsCommentBot:
         self.processed_ids = set()
         self._comment_count = 0
 
+        # Khởi tạo 1 lần client Gemini dùng cho toàn bộ vòng đời bot
+        api_key_candidates = [self.config.gg_api_key_1, self.config.gg_api_key_2]
+        api_key_candidates = [k for k in api_key_candidates if k]
+
+        if not api_key_candidates:
+            raise ValueError("Không có Gemini API key hợp lệ trong config (gg_api_key_1, gg_api_key_2).")
+
+        self.api_key = random.choice(api_key_candidates)
+        logger.info("Đã chọn 1 Gemini API key cho phiên bot hiện tại.")
+        self.client = genai.Client(api_key=self.api_key)
+
     async def prepare(self) -> None:
         await asyncio.sleep(5)
 
@@ -100,25 +111,56 @@ class ThreadsCommentBot:
         await post.scroll_into_view()
         logger.info("Đã scroll vào bài %d", self._comment_count + 1)
         await self.observe_post()
-        content_div = await post.query_selector('div[class="x1a6qonq x6ikm8r x10wlt62 xj0a0fe x126k92a x6prxxf x7r5mf7"]')
-        if content_div:
-            content = await content_div.inner_text()
+
+        js_get_content = """
+        (postElement) => {
+            try {
+                const el = postElement.querySelector('div.x1a6qonq.x6ikm8r.x10wlt62.xj0a0fe.x126k92a.x6prxxf.x7r5mf7');
+                if (!el) {
+                    return null;
+                }
+                // textContent: chỉ lấy text bên trong, không lấy HTML
+                const text = el.textContent || "";
+                return text.trim();
+            } catch (e) {
+                return null;
+            }
+        }
+        """
+
+        try:
+            content = await post.apply(js_get_content)
+        except Exception as exc:
+            logger.error("Lỗi khi thực thi JS lấy nội dung bài viết: %s", exc)
+            content = None
+
+        if content:
             logger.info("Nội dung bài viết: %s", content)
         else:
-            logger.warning("Không tìm thấy nội dung bài viết")
-            content = None
+            logger.warning("Không tìm thấy nội dung bài viết hoặc nội dung rỗng")
         
         prompt_engineering = self.config.prompt_engineering
         full_prompt = f"{prompt_engineering}\n\nNội dung: {content}"
-        
-        api_key = random.choice([self.config.gg_api_key_1, self.config.gg_api_key_2])
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=full_prompt
-        )
-        
-        if "True" in response.text:
+
+        # Gọi Gemini bằng client cố định đã khởi tạo trong __init__
+        def call_gemini():
+            response = self.client.models.generate_content(
+                model="gemini-2.5-flash-lite",
+                contents=full_prompt,
+            )
+            # Đảm bảo luôn trả về string để xử lý an toàn
+            return getattr(response, "text", str(response))
+
+        logger.info("Đang gọi Gemini API để phân tích bài viết ...")
+        try:
+            # Đưa blocking I/O sang thread pool để không chặn event loop 
+            response_text = await asyncio.to_thread(call_gemini)
+            logger.info("Đã nhận phản hồi từ Gemini")
+        except Exception as exc:
+            logger.error("Lỗi khi gọi Gemini API: %s", exc)
+            return None
+
+        if "True" in response_text:
             return True
         else:
             return None

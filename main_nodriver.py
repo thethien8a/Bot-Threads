@@ -81,7 +81,7 @@ async def main():
 
     await scrape_threads(page, config)
 
-    await asyncio.to_thread(input, "Nhấn Enter không kiểm tra nữa...")
+    # await asyncio.to_thread(input, "Nhấn Enter không kiểm tra nữa...")
 
     # Đóng browser
     browser.stop()
